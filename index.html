@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="utf-8" />
+    <title>Google Sheets 貼文瀏覽器</title>
+    <!-- 引入 Tailwind CSS 以進行快速樣式設計 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f1f5f9; /* 使用柔和的灰色背景 */
+        }
+        .card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            background-color: white;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        .card-img {
+            aspect-ratio: 16 / 9; /* 維持圖片的長寬比 */
+            object-fit: cover; /* 確保圖片填滿容器 */
+            background-color: #e2e8f0; /* 圖片載入前的佔位背景色 */
+        }
+        .loader {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #3b82f6;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800">Google Sheets 資料瀏覽</h1>
+            <p class="text-gray-500 mt-2">已修正圖片連結處理問題</p>
+        </header>
+        
+        <!-- 載入指示器 -->
+        <div id="loader" class="flex justify-center py-16">
+            <div class="loader"></div>
+        </div>
+
+        <!-- 卡片容器 -->
+        <div id="card-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- 卡片將會動態插入此處 -->
+        </div>
+        
+        <!-- 錯誤訊息容器 -->
+         <div id="error-container" class="text-center hidden mt-8">
+             <p class="text-red-500 font-semibold"></p>
+         </div>
+
+    </div>
+
+    <script>
+      // --- 1. 設定您發佈到網路的 CSV 連結 ---
+      const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSl51lnFakVdfaBpTQPkTR3Q78JdWi6opCT74N0Vphb48aJaO6kHa0yF8kDcdty9gwR0LoNTtbVaXP-/pub?gid=1700592500&single=true&output=csv';
+
+      // --- 2. 負責解析 CSV 字串的函式 ---
+      function parseCSV(csvText) {
+        const lines = csvText.trim().split(/\r?\n/);
+        if (lines.length < 2) return [];
+
+        const headers = lines[0].split(',').map(h => h.trim());
+        const data = [];
+        for (let i = 1; i < lines.length; i++) {
+            if (lines[i].trim() === '') continue;
+            const values = lines[i].split(',').map(v => v.trim());
+            
+            const entry = {};
+            headers.forEach((header, index) => {
+                entry[header] = values[index];
+            });
+            data.push(entry);
+        }
+        return data;
+      }
+
+      // --- 【關鍵修正】這是一個專門用來將各種 Google Drive 分享連結轉換為圖片直接連結的函式 ---
+      function convertToDirectImageLink(url) {
+        if (!url || typeof url !== 'string') {
+            return null; // 如果沒有提供 URL 或格式不對，回傳 null
+        }
+        
+        // 從各種常見的 Google Drive 連結格式中，用正規表達式提取檔案 ID
+        const regex = /drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([a-zA-Z0-9_-]+)/;
+        const match = url.match(regex);
+        
+        if (match && match[1]) {
+            const fileId = match[1];
+            // 使用 lh3.googleusercontent.com 這個網域來建立更穩定的直接圖片連結
+            // 這是專門用來在網頁上顯示 Google 內容的網域
+            return `https://lh3.googleusercontent.com/d/${fileId}`;
+        }
+        
+        // 如果不是 Google Drive 連結，或格式不符，則直接回傳原始連結
+        // 這能確保即使您未來使用其他圖床的連結，也能正常運作
+        return url;
+      }
+
+
+      // --- 3. 負責將解析後的資料渲染成 HTML 卡片的函式 ---
+      function renderCards(posts) {
+        const container = document.getElementById('card-container');
+        container.innerHTML = ''; // 清空舊內容
+
+        posts.forEach(post => {
+            const card = document.createElement('div');
+            card.className = 'card rounded-lg shadow-lg overflow-hidden';
+            
+            // 步驟 A：從試算表讀取原始連結
+            const originalUrl = post['圖片連結']; 
+            
+            // 步驟 B：呼叫修正後的函式，將原始連結轉換成可以直接顯示的圖片網址
+            const imageUrl = convertToDirectImageLink(originalUrl) || 'https://placehold.co/600x400/e2e8f0/adb5bd?text=No+Image';
+            
+            const date = post['日期'] || '無日期';
+            const timestamp = post['時間戳記'] || '無時間戳記';
+
+            // 步驟 C：將轉換後的 imageUrl 放入 <img> 的 src 中
+            card.innerHTML = `
+                <img src="${imageUrl}" alt="貼文圖片" class="card-img w-full" onerror="this.onerror=null;this.src='https://placehold.co/600x400/e2e8f0/adb5bd?text=Image+Error';">
+                <div class="p-4">
+                    <h2 class="text-lg font-bold text-gray-800">${date}</h2>
+                    <p class="text-sm text-gray-500 mt-1">${timestamp}</p>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+      }
+
+      // --- 4. 主執行函式：抓取、解析並渲染資料 ---
+      async function main() {
+        const loader = document.getElementById('loader');
+        const errorContainer = document.getElementById('error-container');
+        try {
+            const response = await fetch(SHEET_CSV_URL);
+            if (!response.ok) {
+                throw new Error(`網路錯誤！ 狀態: ${response.status}`);
+            }
+            const csvText = await response.text();
+            
+            const posts = parseCSV(csvText);
+
+            if (posts.length === 0) {
+                 throw new Error('讀取到的 CSV 資料為空或格式不正確。');
+            }
+
+            renderCards(posts);
+
+        } catch (error) {
+            console.error('載入試算表時發生錯誤:', error);
+            errorContainer.querySelector('p').textContent = `載入失敗：${error.message}。請確認試算表已「發佈到網路」。`;
+            errorContainer.classList.remove('hidden');
+        } finally {
+            loader.style.display = 'none';
+        }
+      }
+
+      // --- 5. 執行 ---
+      main();
+    </script>
+</body>
+</html>
+
