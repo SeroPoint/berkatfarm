@@ -89,8 +89,11 @@
       // --- 【關鍵修正】這是一個專門用來將各種 Google Drive 分享連結轉換為圖片直接連結的函式 ---
       function convertToDirectImageLink(url) {
         if (!url || typeof url !== 'string') {
+            console.log('URL is null or not string:', url);
             return null; // 如果沒有提供 URL 或格式不對，回傳 null
         }
+        
+        console.log('Original URL:', url);
         
         // 從各種常見的 Google Drive 連結格式中，用正規表達式提取檔案 ID
         const regex = /drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([a-zA-Z0-9_-]+)/;
@@ -98,11 +101,12 @@
         
         if (match && match[1]) {
             const fileId = match[1];
-            // 使用 lh3.googleusercontent.com 這個網域來建立更穩定的直接圖片連結
-            // 這是專門用來在網頁上顯示 Google 內容的網域
-            return `https://lh3.googleusercontent.com/d/${fileId}`;
+            const convertedUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+            console.log('Converted URL:', convertedUrl);
+            return convertedUrl;
         }
         
+        console.log('No Google Drive match found, returning original URL');
         // 如果不是 Google Drive 連結，或格式不符，則直接回傳原始連結
         // 這能確保即使您未來使用其他圖床的連結，也能正常運作
         return url;
@@ -119,20 +123,25 @@
             card.className = 'card rounded-lg shadow-lg overflow-hidden';
             
             // 步驟 A：從試算表讀取原始連結
-            const originalUrl = post['圖片連結']; 
+            const originalUrl = post['photo']; 
             
-            // 步驟 B：呼叫修正後的函式，將原始連結轉換成可以直接顯示的圖片網址
-            const imageUrl = convertToDirectImageLink(originalUrl) || 'https://placehold.co/600x400/e2e8f0/adb5bd?text=No+Image';
+            // 步驟 B：處理多個URL的情況，取第一個URL
+            const firstUrl = originalUrl ? originalUrl.split(',')[0].trim() : null;
             
-            const date = post['日期'] || '無日期';
+            // 步驟 C：呼叫修正後的函式，將原始連結轉換成可以直接顯示的圖片網址
+            const imageUrl = convertToDirectImageLink(firstUrl) || 'https://placehold.co/600x400/e2e8f0/adb5bd?text=No+Image';
+            
+            const date = post['date'] || '無日期';
             const timestamp = post['時間戳記'] || '無時間戳記';
+            const title = post['title'] || '';
 
-            // 步驟 C：將轉換後的 imageUrl 放入 <img> 的 src 中
+            // 步驟 D：將轉換後的 imageUrl 放入 <img> 的 src 中
             card.innerHTML = `
                 <img src="${imageUrl}" alt="貼文圖片" class="card-img w-full" onerror="this.onerror=null;this.src='https://placehold.co/600x400/e2e8f0/adb5bd?text=Image+Error';">
                 <div class="p-4">
                     <h2 class="text-lg font-bold text-gray-800">${date}</h2>
                     <p class="text-sm text-gray-500 mt-1">${timestamp}</p>
+                    ${title ? `<p class="text-sm text-gray-700 mt-2">${title}</p>` : ''}
                 </div>
             `;
             container.appendChild(card);
