@@ -440,8 +440,8 @@
         }
       }
       
-      // 確認刪除 - 使用 JSONP 方式避免 CORS
-      async function confirmDelete(index) {
+      // 確認刪除 - 簡單直接的方式
+      function confirmDelete(index) {
         // 關閉對話框
         cancelDelete();
         
@@ -452,79 +452,24 @@
         });
         
         const postToDelete = activePosts[index];
-        const date = postToDelete['date'] || '無日期';
-        const title = postToDelete['title'] || '';
         const timestamp = postToDelete['時間戳記'] || '';
         
-        // 找到對應的卡片並隱藏
-        const cards = document.querySelectorAll('.card');
-        if (cards[index]) {
-          cards[index].style.display = 'none';
-        }
-        
-        // 顯示處理中的通知
-        const notification = document.createElement('div');
-        notification.className = 'fixed top-20 right-4 bg-blue-500 text-white px-6 py-4 rounded shadow-lg z-50 max-w-sm';
-        notification.innerHTML = `
-          <div class="font-bold mb-2">🔄 正在刪除項目...</div>
-          <div class="text-sm">項目: ${date}${title ? ` - ${title}` : ''}</div>
-        `;
-        document.body.appendChild(notification);
-        
-        // 使用 JSONP 方式調用 Google Apps Script
-        const callbackName = 'deleteCallback_' + Date.now();
+        // 直接調用 Google Apps Script 標記為刪除，然後重新載入頁面
         const params = new URLSearchParams({
           action: 'delete',
-          timestamp: timestamp,
-          date: date,
-          title: title || '',
-          callback: callbackName
+          timestamp: timestamp
         });
         
-        // 創建 JSONP 回調
-        window[callbackName] = function(result) {
-          // 清理
-          document.head.removeChild(script);
-          delete window[callbackName];
-          
-          if (result && result.success) {
-            // 成功刪除
-            notification.className = 'fixed top-20 right-4 bg-green-500 text-white px-6 py-4 rounded shadow-lg z-50 max-w-sm';
-            notification.innerHTML = `
-              <div class="font-bold mb-2">✅ 刪除成功</div>
-              <div class="text-sm">項目已從 Google Sheets 中標記為刪除</div>
-              <button onclick="this.parentElement.remove()" class="mt-2 text-xs underline">關閉</button>
-            `;
-          } else {
-            // 刪除失敗
-            notification.className = 'fixed top-20 right-4 bg-orange-500 text-white px-6 py-4 rounded shadow-lg z-50 max-w-sm';
-            notification.innerHTML = `
-              <div class="font-bold mb-2">⚠️ 刪除失敗</div>
-              <div class="text-sm mb-2">項目已在本地標記為刪除</div>
-              <div class="text-xs">錯誤: ${result ? result.error : '未知錯誤'}</div>
-              <button onclick="this.parentElement.remove()" class="mt-2 text-xs underline">關閉</button>
-            `;
-          }
-          
-          // 5秒後自動移除通知
-          setTimeout(() => {
-            if (notification.parentElement) {
-              notification.remove();
-            }
-          }, 5000);
-        };
+        // 使用 iframe 發送請求（避免 CORS）
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = `https://script.google.com/macros/s/AKfycbzcpBnUtTc8I3ieoli1dheP597Cd6FmaQT0GHw6OZf0jwR5tCa0j13UlWlp41ByDAn8qQ/exec?${params}`;
+        document.body.appendChild(iframe);
         
-        // 創建 script 標籤進行 JSONP 請求
-        const script = document.createElement('script');
-        script.src = `https://script.google.com/macros/s/AKfycbzcpBnUtTc8I3ieoli1dheP597Cd6FmaQT0GHw6OZf0jwR5tCa0j13UlWlp41ByDAn8qQ/exec?${params}`;
-        script.onerror = function() {
-          // JSONP 失敗時的處理
-          window[callbackName]({ success: false, error: 'JSONP 請求失敗' });
-        };
-        
-        document.head.appendChild(script);
-        
-        console.log('處理刪除項目:', { date, title, index });
+        // 1秒後重新載入頁面
+        setTimeout(() => {
+          location.reload();
+        }, 1000);
       }
       
 
