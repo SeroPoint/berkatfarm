@@ -460,16 +460,16 @@
           timestamp: timestamp
         });
         
-        // 使用 iframe 發送請求（避免 CORS）
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = `https://script.google.com/macros/s/AKfycbzcpBnUtTc8I3ieoli1dheP597Cd6FmaQT0GHw6OZf0jwR5tCa0j13UlWlp41ByDAn8qQ/exec?${params}`;
-        document.body.appendChild(iframe);
+        // 使用 Image 發送 GET 請求（避免 CORS）
+        const img = new Image();
+        img.src = `https://script.google.com/macros/s/AKfycbzcpBnUtTc8I3ieoli1dheP597Cd6FmaQT0GHw6OZf0jwR5tCa0j13UlWlp41ByDAn8qQ/exec?${params}`;
         
-        // 1秒後重新載入頁面
+        console.log('發送刪除請求:', img.src);
+        
+        // 2秒後重新載入頁面
         setTimeout(() => {
           location.reload();
-        }, 1000);
+        }, 2000);
       }
       
 
