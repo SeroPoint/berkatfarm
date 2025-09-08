@@ -93,31 +93,6 @@
             font-size: 12px;
         }
         
-        .menu-button {
-            position: absolute;
-            top: 10px;
-            right: 50px;
-            background: rgba(0,0,0,0.6);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            font-weight: bold;
-            transition: all 0.2s ease;
-            z-index: 10;
-        }
-        
-        .menu-button:hover {
-            background: rgba(0,0,0,0.8);
-            transform: scale(1.1);
-        }
-        
         .upload-button {
             position: fixed;
             top: 20px;
@@ -256,8 +231,8 @@
         
         if (match && match[1]) {
             const fileId = match[1];
-            // 使用 drive.google.com/thumbnail 方法，但加上更大的尺寸
-            const convertedUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w2000-h2000`;
+            // 使用 2025 年最新推薦的 thumbnail 方法來顯示 Google Drive 圖片
+            const convertedUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
             console.log('Converted URL:', convertedUrl);
             return convertedUrl;
         }
@@ -274,27 +249,7 @@
         const container = document.getElementById('card-container');
         container.innerHTML = ''; // 清空舊內容
 
-        // 儲存原始資料到全域變數
-        currentPosts = posts;
-        
-        // 調試：輸出所有原始資料
-        console.log('所有原始資料:', posts);
-        console.log('資料總數:', posts.length);
-        
-        // 過濾掉標記為刪除的項目（Google Sheets 中的 delete 欄位）
-        let activePosts = posts.filter(post => {
-            const deleteStatus = post['delete'] || '';
-            const isDeleted = deleteStatus.toLowerCase() === 'true' || deleteStatus === '1' || deleteStatus.toLowerCase() === 'yes';
-            if (isDeleted) {
-                console.log('Google Sheets 中標記為刪除的項目:', post);
-            }
-            return !isDeleted;
-        });
-        
-        console.log('過濾 Google Sheets 刪除後的資料數量:', activePosts.length);
-        console.log('最終顯示的資料:', activePosts);
-
-        activePosts.forEach((post, index) => {
+        posts.forEach((post, index) => {
             const card = document.createElement('div');
             card.className = 'card rounded-lg shadow-lg overflow-hidden cursor-pointer';
             
@@ -320,11 +275,6 @@
                 <div class="relative">
                     <img src="${imageUrl}" alt="貼文圖片" class="card-img w-full" onerror="this.onerror=null;this.src='https://placehold.co/600x400/e2e8f0/adb5bd?text=Image+Error';">
                     ${allUrls.length > 1 ? `<div class="photo-count">${allUrls.length} 張照片</div>` : ''}
-                    <div class="absolute top-2 right-2">
-                        <button onclick="showDeleteConfirm(event, ${index})" class="bg-gray-800 bg-opacity-70 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-opacity-90 transition-all">
-                            <span class="text-lg leading-none">⋯</span>
-                        </button>
-                    </div>
                 </div>
                 <div class="p-4">
                     <h2 class="text-lg font-bold text-gray-800">${date}</h2>
@@ -383,95 +333,6 @@
       function openUploadForm() {
         window.open('https://docs.google.com/forms/d/e/1FAIpQLSf8oIrvXwHwZMfWzPQD5QDSJndWlY_0uaR-lj5IVWZnS6EIJA/viewform', '_blank');
       }
-      
-      // 全域變數儲存當前資料
-      let currentPosts = [];
-      
-      // 顯示刪除確認對話框
-      function showDeleteConfirm(event, index) {
-        event.stopPropagation(); // 防止觸發卡片點擊事件
-        
-        // 創建自定義確認對話框
-        const overlay = document.createElement('div');
-        overlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-        
-        const dialog = document.createElement('div');
-        dialog.className = 'bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl';
-        
-        dialog.innerHTML = `
-          <div class="text-center">
-            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
-              <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-              </svg>
-            </div>
-            <h3 class="text-lg font-medium text-gray-900 mb-2">刪除項目</h3>
-            <p class="text-sm text-gray-500 mb-6">確定要刪除這個項目嗎？此操作無法復原。</p>
-            <div class="flex space-x-3">
-              <button onclick="cancelDelete()" class="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors">
-                取消
-              </button>
-              <button onclick="confirmDelete(${index})" class="flex-1 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors">
-                刪除
-              </button>
-            </div>
-          </div>
-        `;
-        
-        overlay.appendChild(dialog);
-        document.body.appendChild(overlay);
-        
-        // 點擊背景關閉
-        overlay.addEventListener('click', function(e) {
-          if (e.target === overlay) {
-            cancelDelete();
-          }
-        });
-        
-        // 儲存 overlay 到全域變數以便關閉
-        window.currentDeleteOverlay = overlay;
-      }
-      
-      // 取消刪除
-      function cancelDelete() {
-        if (window.currentDeleteOverlay) {
-          document.body.removeChild(window.currentDeleteOverlay);
-          window.currentDeleteOverlay = null;
-        }
-      }
-      
-      // 確認刪除 - 簡單直接的方式
-      function confirmDelete(index) {
-        // 關閉對話框
-        cancelDelete();
-        
-        // 獲取要刪除的項目資訊
-        const activePosts = currentPosts.filter(post => {
-            const deleteStatus = post['delete'] || '';
-            return deleteStatus.toLowerCase() !== 'true' && deleteStatus !== '1' && deleteStatus.toLowerCase() !== 'yes';
-        });
-        
-        const postToDelete = activePosts[index];
-        const timestamp = postToDelete['時間戳記'] || '';
-        
-        // 直接調用 Google Apps Script 標記為刪除，然後重新載入頁面
-        const params = new URLSearchParams({
-          action: 'delete',
-          timestamp: timestamp
-        });
-        
-        // 使用 Image 發送 GET 請求（避免 CORS）
-        const img = new Image();
-        img.src = `https://script.google.com/macros/s/AKfycbzcpBnUtTc8I3ieoli1dheP597Cd6FmaQT0GHw6OZf0jwR5tCa0j13UlWlp41ByDAn8qQ/exec?${params}`;
-        
-        console.log('發送刪除請求:', img.src);
-        
-        // 2秒後重新載入頁面
-        setTimeout(() => {
-          location.reload();
-        }, 2000);
-      }
-      
 
       // --- 4. 主執行函式：抓取、解析並渲染資料 ---
       async function main() {
