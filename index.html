@@ -101,7 +101,8 @@
         
         if (match && match[1]) {
             const fileId = match[1];
-            const convertedUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+            // 使用 2025 年最新推薦的 thumbnail 方法來顯示 Google Drive 圖片
+            const convertedUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
             console.log('Converted URL:', convertedUrl);
             return convertedUrl;
         }
