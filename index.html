@@ -35,14 +35,108 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        
+        /* 畫廊模態框樣式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.9);
+        }
+        
+        .modal-content {
+            position: relative;
+            margin: 2% auto;
+            padding: 20px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            background-color: rgba(0,0,0,0.9);
+        }
+        
+        .gallery-image {
+            width: 100%;
+            max-height: 80vh;
+            object-fit: contain;
+            margin-bottom: 20px;
+            display: block;
+        }
+        
+        .close {
+            position: fixed;
+            top: 20px;
+            right: 40px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 1001;
+        }
+        
+        .close:hover {
+            color: #bbb;
+        }
+        
+        .photo-count {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        
+        .upload-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        @media (min-width: 768px) {
+            .upload-button {
+                padding: 15px 25px;
+                font-size: 16px;
+                gap: 8px;
+            }
+        }
+        
+        .upload-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        }
+        
+        .upload-button:active {
+            transform: translateY(0);
+        }
     </style>
 </head>
 <body>
 
     <div class="container mx-auto p-4 md:p-8">
-        <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-800">Google Sheets 資料瀏覽</h1>
-            <p class="text-gray-500 mt-2">已修正圖片連結處理問題</p>
+        <header class="text-center mb-8 mt-20 md:mt-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800">berkatfarm Gallery</h1>
         </header>
         
         <!-- 載入指示器 -->
@@ -55,12 +149,31 @@
             <!-- 卡片將會動態插入此處 -->
         </div>
         
+        <!-- 畫廊模態框 -->
+        <div id="gallery-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <div id="gallery-images"></div>
+            </div>
+        </div>
+        
         <!-- 錯誤訊息容器 -->
          <div id="error-container" class="text-center hidden mt-8">
              <p class="text-red-500 font-semibold"></p>
          </div>
 
     </div>
+    
+    <!-- 上傳按鈕 -->
+    <button class="upload-button" onclick="openUploadForm()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.89 22 5.99 22H18C19.1 22 20 21.1 20 20V8L14 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="12" y1="17" x2="12" y2="9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Upload
+    </button>
 
     <script>
       // --- 1. 設定您發佈到網路的 CSV 連結 ---
@@ -75,11 +188,28 @@
         const data = [];
         for (let i = 1; i < lines.length; i++) {
             if (lines[i].trim() === '') continue;
-            const values = lines[i].split(',').map(v => v.trim());
+            
+            // 更好的 CSV 解析，處理包含逗號的欄位
+            const values = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let j = 0; j < lines[i].length; j++) {
+                const char = lines[i][j];
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    values.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            values.push(current.trim()); // 加入最後一個值
             
             const entry = {};
             headers.forEach((header, index) => {
-                entry[header] = values[index];
+                entry[header] = values[index] || '';
             });
             data.push(entry);
         }
@@ -119,34 +249,89 @@
         const container = document.getElementById('card-container');
         container.innerHTML = ''; // 清空舊內容
 
-        posts.forEach(post => {
+        posts.forEach((post, index) => {
             const card = document.createElement('div');
-            card.className = 'card rounded-lg shadow-lg overflow-hidden';
+            card.className = 'card rounded-lg shadow-lg overflow-hidden cursor-pointer';
             
             // 步驟 A：從試算表讀取原始連結
             const originalUrl = post['photo']; 
             
-            // 步驟 B：處理多個URL的情況，取第一個URL
-            const firstUrl = originalUrl ? originalUrl.split(',')[0].trim() : null;
+            // 步驟 B：處理多個URL的情況，分割所有URL
+            const allUrls = originalUrl ? originalUrl.split(',').map(url => url.trim()).filter(url => url) : [];
+            const firstUrl = allUrls[0] || null;
             
             // 步驟 C：呼叫修正後的函式，將原始連結轉換成可以直接顯示的圖片網址
             const imageUrl = convertToDirectImageLink(firstUrl) || 'https://placehold.co/600x400/e2e8f0/adb5bd?text=No+Image';
             
             const date = post['date'] || '無日期';
-            const timestamp = post['時間戳記'] || '無時間戳記';
-            const title = post['title'] || '';
+            // 過濾掉可能是 URL 的 title 內容
+            let title = post['title'] || '';
+            if (title && (title.includes('http') || title.includes('drive.google.com'))) {
+                title = ''; // 如果 title 包含 URL，就清空它
+            }
 
             // 步驟 D：將轉換後的 imageUrl 放入 <img> 的 src 中
             card.innerHTML = `
-                <img src="${imageUrl}" alt="貼文圖片" class="card-img w-full" onerror="this.onerror=null;this.src='https://placehold.co/600x400/e2e8f0/adb5bd?text=Image+Error';">
+                <div class="relative">
+                    <img src="${imageUrl}" alt="貼文圖片" class="card-img w-full" onerror="this.onerror=null;this.src='https://placehold.co/600x400/e2e8f0/adb5bd?text=Image+Error';">
+                    ${allUrls.length > 1 ? `<div class="photo-count">${allUrls.length} 張照片</div>` : ''}
+                </div>
                 <div class="p-4">
                     <h2 class="text-lg font-bold text-gray-800">${date}</h2>
-                    <p class="text-sm text-gray-500 mt-1">${timestamp}</p>
                     ${title ? `<p class="text-sm text-gray-700 mt-2">${title}</p>` : ''}
+                    ${allUrls.length > 1 ? `<p class="text-xs text-blue-600 mt-2">點擊查看所有照片</p>` : ''}
                 </div>
             `;
+            
+            // 添加點擊事件來開啟畫廊
+            card.addEventListener('click', () => {
+                openGallery(allUrls, date, title);
+            });
+            
             container.appendChild(card);
         });
+      }
+      
+      // --- 新增：畫廊功能 ---
+      function openGallery(urls, date, title) {
+        const modal = document.getElementById('gallery-modal');
+        const galleryImages = document.getElementById('gallery-images');
+        
+        // 清空之前的圖片
+        galleryImages.innerHTML = '';
+        
+        // 添加標題
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'text-white text-center mb-4';
+        titleDiv.innerHTML = `<h2 class="text-2xl font-bold">${date}</h2>${title ? `<p class="text-lg mt-2">${title}</p>` : ''}`;
+        galleryImages.appendChild(titleDiv);
+        
+        // 為每個URL創建圖片
+        urls.forEach((url, index) => {
+            const imageUrl = convertToDirectImageLink(url) || 'https://placehold.co/600x400/e2e8f0/adb5bd?text=Image+Error';
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.className = 'gallery-image';
+            img.alt = `照片 ${index + 1}`;
+            img.onerror = function() {
+                this.onerror = null;
+                this.src = 'https://placehold.co/600x400/e2e8f0/adb5bd?text=Image+Error';
+            };
+            galleryImages.appendChild(img);
+        });
+        
+        modal.style.display = 'block';
+      }
+      
+      // 關閉畫廊
+      function closeGallery() {
+        const modal = document.getElementById('gallery-modal');
+        modal.style.display = 'none';
+      }
+      
+      // 開啟上傳表單
+      function openUploadForm() {
+        window.open('https://docs.google.com/forms/d/e/1FAIpQLSf8oIrvXwHwZMfWzPQD5QDSJndWlY_0uaR-lj5IVWZnS6EIJA/viewform', '_blank');
       }
 
       // --- 4. 主執行函式：抓取、解析並渲染資料 ---
@@ -179,7 +364,35 @@
 
       // --- 5. 執行 ---
       main();
+      
+      // 畫廊事件監聽
+      document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('gallery-modal');
+        const closeBtn = document.querySelector('.close');
+        
+        // 點擊關閉按鈕
+        closeBtn.addEventListener('click', closeGallery);
+        
+        // 點擊模態框背景關閉 (但不包括內容區域)
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeGallery();
+            }
+        });
+        
+        // 防止內容區域的點擊事件冒泡
+        const modalContent = document.querySelector('.modal-content');
+        modalContent.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+        
+        // ESC 鍵關閉
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeGallery();
+            }
+        });
+      });
     </script>
 </body>
 </html>
-
