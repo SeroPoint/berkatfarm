@@ -67,6 +67,14 @@
             display: block;
         }
         
+        .gallery-video {
+            width: 100%;
+            height: 60vh;
+            margin-bottom: 20px;
+            border: none;
+            border-radius: 8px;
+        }
+        
         .close {
             position: fixed;
             top: 20px;
@@ -91,6 +99,22 @@
             padding: 4px 8px;
             border-radius: 12px;
             font-size: 12px;
+        }
+        
+        .video-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
         }
         
         .upload-button {
@@ -227,6 +251,40 @@
         return data;
       }
 
+      // --- 檢查是否為視頻文件的函式 ---
+      function isVideoFile(url) {
+        if (!url || typeof url !== 'string') return false;
+        
+        // 檢查 Google Drive 視頻檔案
+        const driveRegex = /drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([a-zA-Z0-9_-]+)/;
+        const driveMatch = url.match(driveRegex);
+        
+        if (driveMatch) {
+            // 對於 Google Drive 文件，我們無法直接從 URL 判斷是否為視頻
+            // 但可以嘗試通過其他方式檢測
+            return true; // 假設可能是視頻，讓系統嘗試處理
+        }
+        
+        // 檢查常見的視頻文件擴展名
+        const videoExtensions = /\.(mp4|avi|mov|mkv|webm|flv|wmv|m4v)(\?|$)/i;
+        return videoExtensions.test(url);
+      }
+
+      // --- 獲取 Google Drive 視頻嵌入連結的函式 ---
+      function getGoogleDriveVideoEmbed(url) {
+        if (!url || typeof url !== 'string') return null;
+        
+        const regex = /drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([a-zA-Z0-9_-]+)/;
+        const match = url.match(regex);
+        
+        if (match && match[1]) {
+            const fileId = match[1];
+            return `https://drive.google.com/file/d/${fileId}/preview`;
+        }
+        
+        return url;
+      }
+
       // --- 【關鍵修正】這是一個專門用來將各種 Google Drive 分享連結轉換為圖片直接連結的函式 ---
       function convertToDirectImageLink(url) {
         if (!url || typeof url !== 'string') {
@@ -274,6 +332,11 @@
             // 步驟 C：呼叫修正後的函式，將原始連結轉換成可以直接顯示的圖片網址
             const imageUrl = convertToDirectImageLink(firstUrl) || 'https://placehold.co/600x400/e2e8f0/adb5bd?text=No+Image';
             
+            // 檢查是否包含視頻
+            const hasVideo = allUrls.some(url => isVideoFile(url));
+            const videoCount = allUrls.filter(url => isVideoFile(url)).length;
+            const imageCount = allUrls.length - videoCount;
+            
             const date = post['date'] || '無日期';
             // 過濾掉可能是 URL 的 title 內容
             let title = post['title'] || '';
@@ -281,16 +344,29 @@
                 title = ''; // 如果 title 包含 URL，就清空它
             }
 
+            // 構建媒體計數文字
+            let mediaCountText = '';
+            if (allUrls.length > 1) {
+                if (videoCount > 0 && imageCount > 0) {
+                    mediaCountText = `${imageCount} 張照片, ${videoCount} 個視頻`;
+                } else if (videoCount > 0) {
+                    mediaCountText = `${videoCount} 個視頻`;
+                } else {
+                    mediaCountText = `${imageCount} 張照片`;
+                }
+            }
+
             // 步驟 D：將轉換後的 imageUrl 放入 <img> 的 src 中
             card.innerHTML = `
                 <div class="relative">
                     <img src="${imageUrl}" alt="貼文圖片" class="card-img w-full" onerror="this.onerror=null;this.src='https://placehold.co/600x400/e2e8f0/adb5bd?text=Image+Error';">
-                    ${allUrls.length > 1 ? `<div class="photo-count">${allUrls.length} 張照片</div>` : ''}
+                    ${hasVideo && allUrls.length === 1 ? '<div class="video-indicator">▶</div>' : ''}
+                    ${allUrls.length > 1 ? `<div class="photo-count">${mediaCountText}</div>` : ''}
                 </div>
                 <div class="p-4">
                     <h2 class="text-lg font-bold text-gray-800">${date}</h2>
                     ${title ? `<p class="text-sm text-gray-700 mt-2">${title}</p>` : ''}
-                    ${allUrls.length > 1 ? `<p class="text-xs text-blue-600 mt-2">點擊查看所有照片</p>` : ''}
+                    ${allUrls.length > 1 ? `<p class="text-xs text-blue-600 mt-2">點擊查看所有媒體</p>` : hasVideo ? `<p class="text-xs text-blue-600 mt-2">點擊播放視頻</p>` : ''}
                 </div>
             `;
             
@@ -308,7 +384,7 @@
         const modal = document.getElementById('gallery-modal');
         const galleryImages = document.getElementById('gallery-images');
         
-        // 清空之前的圖片
+        // 清空之前的內容
         galleryImages.innerHTML = '';
         
         // 添加標題
@@ -317,18 +393,31 @@
         titleDiv.innerHTML = `<h2 class="text-2xl font-bold">${date}</h2>${title ? `<p class="text-lg mt-2">${title}</p>` : ''}`;
         galleryImages.appendChild(titleDiv);
         
-        // 為每個URL創建圖片
+        // 為每個URL創建圖片或視頻
         urls.forEach((url, index) => {
-            const imageUrl = convertToDirectImageLink(url) || 'https://placehold.co/600x400/e2e8f0/adb5bd?text=Image+Error';
-            const img = document.createElement('img');
-            img.src = imageUrl;
-            img.className = 'gallery-image';
-            img.alt = `照片 ${index + 1}`;
-            img.onerror = function() {
-                this.onerror = null;
-                this.src = 'https://placehold.co/600x400/e2e8f0/adb5bd?text=Image+Error';
-            };
-            galleryImages.appendChild(img);
+            if (isVideoFile(url)) {
+                // 創建視頻嵌入
+                const videoEmbed = getGoogleDriveVideoEmbed(url);
+                const iframe = document.createElement('iframe');
+                iframe.src = videoEmbed;
+                iframe.className = 'gallery-video';
+                iframe.allow = 'autoplay; encrypted-media';
+                iframe.allowFullscreen = true;
+                iframe.title = `視頻 ${index + 1}`;
+                galleryImages.appendChild(iframe);
+            } else {
+                // 創建圖片
+                const imageUrl = convertToDirectImageLink(url) || 'https://placehold.co/600x400/e2e8f0/adb5bd?text=Image+Error';
+                const img = document.createElement('img');
+                img.src = imageUrl;
+                img.className = 'gallery-image';
+                img.alt = `照片 ${index + 1}`;
+                img.onerror = function() {
+                    this.onerror = null;
+                    this.src = 'https://placehold.co/600x400/e2e8f0/adb5bd?text=Image+Error';
+                };
+                galleryImages.appendChild(img);
+            }
         });
         
         modal.style.display = 'block';
